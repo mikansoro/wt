@@ -70,3 +70,17 @@ both bash and zsh. Subcommands also have short aliases: `g` for `go`, `ls`/`stat
 wt g my-branch     # assign my-branch to a slot and cd into it
 wt free my-branch  # return that slot to the idle pool
 ```
+
+## Development
+
+A `flake.nix` is provided for a reproducible toolchain; Nix is optional, `go build`
+works fine on its own.
+
+```bash
+nix develop    # drop into a shell with go, gopls, golangci-lint, gnumake, and git
+nix build      # build ./result/bin/wt (version stamped from the flake's git revision)
+nix run . -- version
+```
+
+`nix build` also runs the full test suite (`go test ./...`) as part of its sandboxed
+check phase, so a successful build implies passing tests.
