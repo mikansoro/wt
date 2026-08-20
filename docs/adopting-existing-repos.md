@@ -1,7 +1,29 @@
 # Adopting an existing bare+worktrees repo
 
 `wt clone` builds its layout from scratch. A repo you already maintain as a bare checkout with worktrees
-can be converted by hand. The recipe below was verified end-to-end against the common hand-rolled layouts.
+can be converted in place with `wt adopt`, or by hand using the recipe below — both produce the same
+result, and the manual recipe is what `wt adopt` runs internally.
+
+## `wt adopt`
+
+```bash
+wt adopt --dry-run   # from the directory that will become the repo root, or pass a path
+wt adopt
+```
+
+Run `--dry-run` first; it prints every step it would take (as `would: ...` lines on stderr) without
+touching anything, and exits 0 whether or not there's work to do. Running it for real converts the repo
+in place and is safe to re-run: an already-adopted repo reports "nothing to do" instead of repeating work.
+
+A few things `wt adopt` deliberately does not do:
+
+- It never touches worktrees that aren't named `main` or `slot-N`. A branch-named worktree keeps working
+  exactly as described below; adopt does not rename it or fold it into the slot pool.
+- It refuses a bare-as-root layout (worktrees living inside the bare repository itself) outright — see
+  "Converting an existing repo by hand" below for that case, since only the manual recipe handles it.
+- It assumes the remote is named `origin` unless told otherwise with `--remote <name>`. A repo with no
+  remotes at all is supported and adopts with no remote-tracking setup; a repo whose only remote has some
+  other name needs the flag, or adopt refuses to half-convert it.
 
 ## The layout wt requires
 
@@ -16,9 +38,11 @@ myrepo/                       ← repo root (plain directory, NOT itself a workt
 ├── slot-1/ … slot-6/         ← detached worktrees forming the slot pool
 ```
 
-## Converting an existing repo
+## Converting an existing repo by hand
 
-Run these from the directory that will become the repo root.
+This is the manual fallback: it's what `wt adopt` does under the hood, and it's the only path for a
+bare-as-root layout, which `wt adopt` refuses to touch. Run these from the directory that will become the
+repo root.
 
 1. Rename the bare repository to `.bare` if it is named anything else:
 
@@ -79,7 +103,9 @@ Run these from the directory that will become the repo root.
 
 - A `wt list` that prints only the header row usually means broken worktree links. Run
   `git -C .bare worktree repair` with the worktree paths.
-- The remote is assumed to be named `origin`. A repo whose remote has another name cannot resolve its
-  default branch from the remote, though the local HEAD fallback still works.
+- The remote is assumed to be named `origin`. `wt adopt --remote <name>` picks a different one; `wt go`
+  handles any remote name fine once the repo is adopted, but `wt clone` itself still assumes `origin` for
+  a fresh checkout. Converting by hand, a remote with another name still leaves the local HEAD fallback
+  working, just without a resolvable remote default branch.
 - A repo with no remote at all works, but every reuse of an occupied slot prompts for confirmation,
   because no branch can ever have an upstream.

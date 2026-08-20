@@ -24,7 +24,7 @@ const bashCompletion = `_wt() {
   cmd="${COMP_WORDS[1]}"
 
   if [[ ${COMP_CWORD} -eq 1 ]]; then
-    COMPREPLY=( $(compgen -W "clone go g list ls status release free shell-init version" -- "${cur}") )
+    COMPREPLY=( $(compgen -W "adopt clone go g list ls status release free shell-init version" -- "${cur}") )
     return 0
   fi
 
@@ -50,7 +50,7 @@ complete -F _wt wt
 
 const zshCompletion = `_wt() {
   local -a subcommands
-  subcommands=(clone go g list ls status release free shell-init version)
+  subcommands=(adopt clone go g list ls status release free shell-init version)
 
   if (( CURRENT == 2 )); then
     compadd -a subcommands

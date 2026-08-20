@@ -43,7 +43,7 @@ Cross-compiled release binaries are built with `CGO_ENABLED=0` and `-ldflags "-s
 ## File layout
 
 - `cmd/wt/main.go` — minimal wiring: git-on-PATH check, `Execute()`, error → stderr, exit-code mapping (`prompt.ErrAborted` → 2, anything else → 1)
-- `internal/cli/` — one Cobra `NewXCommand()` factory per subcommand (`clone`, `go`, `list`, `release`, `shell-init`, `version`), `root.go` (SilenceErrors/SilenceUsage, default completion cmd disabled), `shell.go` (wrapper + completion scripts as const strings)
+- `internal/cli/` — one Cobra `NewXCommand()` factory per subcommand (`adopt`, `clone`, `go`, `list`, `release`, `shell-init`, `version`), `root.go` (SilenceErrors/SilenceUsage, default completion cmd disabled), `shell.go` (wrapper + completion scripts as const strings)
 - `internal/git/` — `git.Run` wrapper (`Error.Error()` returns git's stderr verbatim), `Worktree` type, porcelain parsers
 - `internal/repo/` — root discovery, default branch, `wt.json` state, LRU `PickSlot`, `SafetyReport`
 - `internal/prompt/` — `/dev/tty` confirmation, `ErrAborted` sentinel

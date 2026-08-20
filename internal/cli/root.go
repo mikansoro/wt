@@ -8,6 +8,7 @@ import "github.com/spf13/cobra"
 const usageText = `usage: wt <command> [args]
 
 commands:
+  adopt [path]             convert an existing bare+worktrees repo into wt's layout
   clone <repo-url> [dir]   bare-clone a repo and create the slot pool
   go <branch>              assign a branch to a slot (alias: g)
   list                     show worktree status (aliases: ls, status)
@@ -29,6 +30,7 @@ func NewRootCommand() *cobra.Command {
 	}
 	root.CompletionOptions.DisableDefaultCmd = true
 
+	root.AddCommand(NewAdoptCommand())
 	root.AddCommand(NewCloneCommand())
 	root.AddCommand(NewGoCommand())
 	root.AddCommand(NewListCommand())

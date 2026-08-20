@@ -18,6 +18,7 @@ go build -o wt ./cmd/wt
 
 | Command | Aliases | Purpose |
 |---|---|---|
+| `wt adopt [path]` | — | Convert an existing bare+worktrees repo into wt's layout, in place |
 | `wt clone <repo-url> [dir]` | — | Bare-clone a repo, create `main` + 6 slot worktrees |
 | `wt go <branch>` | `wt g` | Assign `<branch>` to a slot, print the slot path on stdout (for `cd`) |
 | `wt list` | `wt ls`, `wt status` | Show worktree → branch mapping and cleanliness |

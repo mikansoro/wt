@@ -22,6 +22,15 @@ func FindRepoRoot() (string, error) {
 		return "", fmt.Errorf("getting working directory: %w", err)
 	}
 
+	return FindRepoRootFrom(dir)
+}
+
+// FindRepoRootFrom walks upward from dir looking for the first directory that contains
+// both a .bare directory and a .git regular file — the unique fingerprint of a repo laid
+// out by `wt clone` (see agent-plan.md §5). FindRepoRoot is the common case, starting from
+// the current working directory; `wt adopt` uses this directly to detect whether a target
+// path or one of its ancestors is already fingerprinted.
+func FindRepoRootFrom(dir string) (string, error) {
 	for {
 		bareInfo, bareErr := os.Stat(filepath.Join(dir, ".bare"))
 		gitInfo, gitErr := os.Stat(filepath.Join(dir, ".git"))
@@ -38,17 +47,25 @@ func FindRepoRoot() (string, error) {
 	}
 }
 
-// DefaultBranch determines the repo's default branch. A fresh bare clone has no
-// refs/remotes/origin/HEAD symref until one is set explicitly, so a failed lookup is
-// retried once after `git remote set-head origin --auto`, and finally falls back to the
-// root worktree's own HEAD.
+// DefaultBranch determines the repo's default branch, assuming a remote named "origin".
+// It is a thin wrapper around DefaultBranchFrom for the common case; `wt adopt` calls
+// DefaultBranchFrom directly to support repos adopted under a different remote name.
 func DefaultBranch(root string) (string, error) {
-	if branch, ok := tryDefaultBranchRef(root); ok {
+	return DefaultBranchFrom(root, "origin")
+}
+
+// DefaultBranchFrom determines the repo's default branch using remote as the
+// remote-tracking namespace. A fresh bare clone has no refs/remotes/<remote>/HEAD symref
+// until one is set explicitly, so a failed lookup is retried once after
+// `git remote set-head <remote> --auto`, and finally falls back to the root worktree's own
+// HEAD.
+func DefaultBranchFrom(root, remote string) (string, error) {
+	if branch, ok := tryDefaultBranchRef(root, remote); ok {
 		return branch, nil
 	}
 
-	if _, _, err := git.Run(root, "remote", "set-head", "origin", "--auto"); err == nil {
-		if branch, ok := tryDefaultBranchRef(root); ok {
+	if _, _, err := git.Run(root, "remote", "set-head", remote, "--auto"); err == nil {
+		if branch, ok := tryDefaultBranchRef(root, remote); ok {
 			return branch, nil
 		}
 	}
@@ -61,11 +78,11 @@ func DefaultBranch(root string) (string, error) {
 	return strings.TrimSpace(stdout), nil
 }
 
-func tryDefaultBranchRef(root string) (string, bool) {
-	stdout, _, err := git.Run(root, "symbolic-ref", "--short", "refs/remotes/origin/HEAD")
+func tryDefaultBranchRef(root, remote string) (string, bool) {
+	stdout, _, err := git.Run(root, "symbolic-ref", "--short", "refs/remotes/"+remote+"/HEAD")
 	if err != nil {
 		return "", false
 	}
 
-	return strings.TrimPrefix(strings.TrimSpace(stdout), "origin/"), true
+	return strings.TrimPrefix(strings.TrimSpace(stdout), remote+"/"), true
 }
