@@ -4,19 +4,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-`wt` is a single-binary CLI (Go, standard library only) that manages git worktrees as a **fixed pool of reusable slots** rather than one worktree per branch. `agent-plan.md` is the authoritative, section-numbered specification; consult it before implementing anything. This file summarizes how to work on this repo, the plan file holds the project requirements for implementation. 
+`wt` is a single-binary CLI (Go; Cobra for the command tree, standard library for everything else) that manages git worktrees as a **fixed pool of reusable slots** rather than one worktree per branch. `agent-plan.md` is the authoritative, section-numbered specification for *behavior*; its file layout and stdlib-only notes are superseded by the Go CLI standards imported above. Consult the plan before changing any command's semantics.
 
 ## Commands
 
-The build/test tooling described below comes from `agent-plan.md` §9/§11 and applies once `go.mod` and sources exist (`module wt`, Go 1.22+).
-
 ```bash
-go build -o wt .                 # local build (static by default; no cgo)
-go test ./...                    # full test suite (stdlib testing only)
-go test -run TestName ./...      # single test
+make build                       # go build with the version ldflags stamp → ./wt
+make test                        # go test -count=1 ./... (see note below)
+make lint                        # golangci-lint if installed, else go vet
+go test -count=1 -run TestName ./tests   # single test
 ```
 
-Cross-compiled release binaries are built with `CGO_ENABLED=0` and `-ldflags "-s -w -X main.version=$(git describe --tags --always)"` for `linux/amd64`, `linux/arm64`, `darwin/amd64`, `darwin/arm64` (see §9). `main.version` is a package-level `var` stamped at build time and printed by `wt version`.
+Always pass `-count=1` when running tests directly: the integration tests exec a binary they build at run time, so Go's test cache cannot see that they depend on the source packages and will happily report a stale `(cached)` pass.
+
+Cross-compiled release binaries are built with `CGO_ENABLED=0` and `-ldflags "-s -w -X wt/internal/version.Version=$(git describe --tags --always)"` for `linux/amd64`, `linux/arm64`, `darwin/amd64`, `darwin/arm64`. `wt version` prints the stamped value, falling back to `debug.ReadBuildInfo` for `go install` builds.
 
 ## Architecture
 
@@ -39,8 +40,14 @@ Cross-compiled release binaries are built with `CGO_ENABLED=0` and `-ldflags "-s
 - LRU selection never touches `main` or any non-`slot-*` worktree.
 - Exit codes: `0` success, `1` user error (bad args, not a wt repo, git failure), `2` aborted at a safety prompt.
 
-## Planned file layout (§10)
+## File layout
 
-`main.go` (dispatch + startup checks), `git.go` (`runGit` wrapper, `Worktree` type, porcelain parsers), `repo.go` (root discovery, default branch, state load/save), `cmd_{clone,go,list,release,init}.go`, `shell.go` (wrapper + completion scripts as const strings). Subcommand dispatch is a plain `switch os.Args[1]` with per-command `flag.NewFlagSet` — no CLI framework. Target size ~700–900 lines including tests.
+- `cmd/wt/main.go` — minimal wiring: git-on-PATH check, `Execute()`, error → stderr, exit-code mapping (`prompt.ErrAborted` → 2, anything else → 1)
+- `internal/cli/` — one Cobra `NewXCommand()` factory per subcommand (`clone`, `go`, `list`, `release`, `init`, `version`), `root.go` (SilenceErrors/SilenceUsage, default completion cmd disabled), `shell.go` (wrapper + completion scripts as const strings)
+- `internal/git/` — `git.Run` wrapper (`Error.Error()` returns git's stderr verbatim), `Worktree` type, porcelain parsers
+- `internal/repo/` — root discovery, default branch, `wt.json` state, LRU `PickSlot`, `SafetyReport`
+- `internal/prompt/` — `/dev/tty` confirmation, `ErrAborted` sentinel
+- `internal/version/` — ldflags-stamped version vars
+- `tests/` — black-box integration tests; they exec the compiled binary, never internal functions
 
-Tests build fixtures in `t.TempDir()`: create a local bare "remote", seed a commit on `main`, then invoke the compiled `wt` binary against it.
+Tests build fixtures in `t.TempDir()`: create a local bare "remote", seed a commit on `main`, then invoke the compiled `wt` binary against it. Subprocesses run with `Setsid` so `/dev/tty` prompts deterministically abort (exit 2) instead of blocking.
