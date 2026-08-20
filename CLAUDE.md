@@ -29,7 +29,7 @@ Cross-compiled release binaries are built with `CGO_ENABLED=0` and `-ldflags "-s
 
 **Repo root discovery** (works from root, `main/`, or any slot): walk upward to the first directory containing **both** a `.bare/` directory and a `.git` regular file. Every git invocation then uses `git -C <explicit-path>` so behavior never depends on CWD.
 
-**Output contract (critical).** A subprocess can't change its parent shell's CWD, so `wt go` prints the target slot's absolute path as the *only* thing on **stdout**; all human chatter goes to **stderr**. `wt init` emits a shell wrapper function that captures stdout and runs `cd`. Prompts must read/write `/dev/tty` directly (never stdin/stdout), so they work while stdout is captured.
+**Output contract (critical).** A subprocess can't change its parent shell's CWD, so `wt go` prints the target slot's absolute path as the *only* thing on **stdout**; all human chatter goes to **stderr**. `wt shell-init` emits a shell wrapper function that captures stdout and runs `cd`. Prompts must read/write `/dev/tty` directly (never stdin/stdout), so they work while stdout is captured.
 
 **Parse only porcelain output** (`git worktree list --porcelain`, `git status --porcelain`) — never human-facing git output. On any git failure, print git's stderr verbatim and exit 1.
 
@@ -43,7 +43,7 @@ Cross-compiled release binaries are built with `CGO_ENABLED=0` and `-ldflags "-s
 ## File layout
 
 - `cmd/wt/main.go` — minimal wiring: git-on-PATH check, `Execute()`, error → stderr, exit-code mapping (`prompt.ErrAborted` → 2, anything else → 1)
-- `internal/cli/` — one Cobra `NewXCommand()` factory per subcommand (`clone`, `go`, `list`, `release`, `init`, `version`), `root.go` (SilenceErrors/SilenceUsage, default completion cmd disabled), `shell.go` (wrapper + completion scripts as const strings)
+- `internal/cli/` — one Cobra `NewXCommand()` factory per subcommand (`clone`, `go`, `list`, `release`, `shell-init`, `version`), `root.go` (SilenceErrors/SilenceUsage, default completion cmd disabled), `shell.go` (wrapper + completion scripts as const strings)
 - `internal/git/` — `git.Run` wrapper (`Error.Error()` returns git's stderr verbatim), `Worktree` type, porcelain parsers
 - `internal/repo/` — root discovery, default branch, `wt.json` state, LRU `PickSlot`, `SafetyReport`
 - `internal/prompt/` — `/dev/tty` confirmation, `ErrAborted` sentinel

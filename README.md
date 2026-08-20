@@ -22,7 +22,7 @@ go build -o wt ./cmd/wt
 | `wt go <branch>` | `wt g` | Assign `<branch>` to a slot, print the slot path on stdout (for `cd`) |
 | `wt list` | `wt ls`, `wt status` | Show worktree → branch mapping and cleanliness |
 | `wt release [slot\|branch]` | `wt free` | Return a slot to the idle pool |
-| `wt init` | — | Print shell integration (wrapper function + tab completion) |
+| `wt shell-init` | — | Print shell integration (wrapper function + tab completion) |
 | `wt version` | — | Print build version |
 
 ## Repo layout
@@ -43,12 +43,30 @@ source of truth for worktree/branch state; `wt` only persists LRU recency, in
 
 ## Shell integration
 
-`wt go` can only print its target path — a subprocess can't change its parent shell's
-working directory — so add the wrapper function and tab completion to your shell rc file:
+A subprocess can't change its parent shell's working directory, so `wt go` on its own
+can only print the target slot's path. Add this to `~/.zshrc` or `~/.bashrc` to get a
+`wt` that actually `cd`s there:
 
 ```bash
-eval "$(wt init)"
+eval "$(wt shell-init)"
 ```
 
-`wt init` detects `zsh` or `bash` from `$SHELL` and prints the wrapper function plus a
-matching completion script to stdout; everything else goes to stderr as install notes.
+`wt shell-init` detects `zsh` or `bash` from `$SHELL` and prints a `wt()` wrapper
+function plus a matching completion script to stdout; everything else (install notes,
+unrecognized-shell warnings) goes to stderr, so it stays visible even though `eval`
+captures stdout.
+
+The wrapper function only special-cases `go`: it runs `command wt go "$@"`, captures its
+stdout (the slot path), and `cd`s to it, while letting stderr chatter pass straight
+through to the terminal. Every other subcommand is passed through to the real `wt`
+binary unchanged.
+
+Once loaded, tab completion covers subcommand names, branch names (for `go`/`g` and
+`release`/`free`), and slot names (`main`, `slot-1`…`slot-6`, for `release`/`free`), for
+both bash and zsh. Subcommands also have short aliases: `g` for `go`, `ls`/`status` for
+`list`, `free` for `release`. For example:
+
+```bash
+wt g my-branch     # assign my-branch to a slot and cd into it
+wt free my-branch  # return that slot to the idle pool
+```

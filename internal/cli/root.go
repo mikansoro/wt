@@ -12,7 +12,7 @@ commands:
   go <branch>              assign a branch to a slot (alias: g)
   list                     show worktree status (aliases: ls, status)
   release [slot|branch]    return a slot to the idle pool (alias: free)
-  init                     print shell integration
+  shell-init               print shell integration
   version                  print the build version`
 
 // NewRootCommand builds the wt command tree.
@@ -33,7 +33,7 @@ func NewRootCommand() *cobra.Command {
 	root.AddCommand(NewGoCommand())
 	root.AddCommand(NewListCommand())
 	root.AddCommand(NewReleaseCommand())
-	root.AddCommand(NewInitCommand())
+	root.AddCommand(NewShellInitCommand())
 	root.AddCommand(NewVersionCommand())
 
 	return root

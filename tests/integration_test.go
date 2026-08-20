@@ -810,18 +810,18 @@ func TestMissingStateFile(t *testing.T) {
 }
 
 func TestMiscCommands(t *testing.T) {
-	t.Run("wt init emits shell wrapper and completion", func(t *testing.T) {
+	t.Run("wt shell-init emits shell wrapper and completion", func(t *testing.T) {
 		dir := t.TempDir()
 
-		stdout, stderr, code := runWT(t, dir, "init")
+		stdout, stderr, code := runWT(t, dir, "shell-init")
 		if code != 0 {
-			t.Fatalf("wt init: exit=%d stderr=%q", code, stderr)
+			t.Fatalf("wt shell-init: exit=%d stderr=%q", code, stderr)
 		}
 		if !strings.Contains(stdout, "wt()") {
-			t.Fatalf("wt init output missing the wt() wrapper function:\n%s", stdout)
+			t.Fatalf("wt shell-init output missing the wt() wrapper function:\n%s", stdout)
 		}
 		if !strings.Contains(stdout, "for-each-ref") {
-			t.Fatalf("wt init output missing the for-each-ref completion script:\n%s", stdout)
+			t.Fatalf("wt shell-init output missing the for-each-ref completion script:\n%s", stdout)
 		}
 	})
 
