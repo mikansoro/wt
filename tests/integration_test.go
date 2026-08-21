@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"syscall"
 	"testing"
@@ -746,6 +747,99 @@ func TestList(t *testing.T) {
 		if !strings.Contains(listOut, name) {
 			t.Fatalf("wt list output missing worktree %q present in git worktree list:\n%s", name, listOut)
 		}
+	}
+}
+
+// columnSplitRe splits a wt list row into columns. Tabwriter pads every column to at least
+// two spaces past its content, so a run of two or more spaces reliably marks a column
+// boundary even though a STATE value ("dirty, unpushed") can contain a single embedded space.
+var columnSplitRe = regexp.MustCompile(`\s{2,}`)
+
+// stateColumn returns the STATE column of the wt list row whose WORKTREE column is name.
+func stateColumn(t *testing.T, listOut, name string) string {
+	t.Helper()
+
+	for _, line := range strings.Split(listOut, "\n") {
+		fields := columnSplitRe.Split(strings.TrimRight(line, " "), -1)
+		if len(fields) > 0 && fields[0] == name {
+			if len(fields) < 3 {
+				t.Fatalf("wt list row for %q has too few columns: %q", name, line)
+			}
+			return fields[2]
+		}
+	}
+
+	t.Fatalf("wt list output has no row for %q:\n%s", name, listOut)
+	return ""
+}
+
+// stateColumnCase pairs a slot name, resolved at runtime since wt go's LRU choice of slot
+// isn't fixed, with the STATE column value that slot's row must render.
+type stateColumnCase struct {
+	Name string
+	Slot string
+	Want string
+}
+
+// TestListStateColumn drives wt list against slots in each of the states the single-subprocess
+// QuickStatus must still distinguish: clean, dirty, unpushed via no upstream, and unpushed via
+// commits ahead of a configured upstream.
+func TestListStateColumn(t *testing.T) {
+	dir := cloneRepo(t)
+
+	stdout, stderr, code := runWT(t, dir, "go", "feat-a")
+	if code != 0 {
+		t.Fatalf("wt go feat-a: exit=%d stderr=%q", code, stderr)
+	}
+	cleanSlot := filepath.Base(assertSingleLinePath(t, stdout))
+
+	stdout, stderr, code = runWT(t, dir, "go", "feat-b")
+	if code != 0 {
+		t.Fatalf("wt go feat-b: exit=%d stderr=%q", code, stderr)
+	}
+	dirtySlotPath := assertSingleLinePath(t, stdout)
+	dirtySlot := filepath.Base(dirtySlotPath)
+	if err := os.WriteFile(filepath.Join(dirtySlotPath, "scratch.txt"), []byte("scratch\n"), 0o644); err != nil {
+		t.Fatalf("writing scratch file: %v", err)
+	}
+
+	stdout, stderr, code = runWT(t, dir, "go", "brand-new-local")
+	if code != 0 {
+		t.Fatalf("wt go brand-new-local: exit=%d stderr=%q", code, stderr)
+	}
+	localOnlySlot := filepath.Base(assertSingleLinePath(t, stdout))
+
+	stdout, stderr, code = runWT(t, dir, "go", "feat-c")
+	if code != 0 {
+		t.Fatalf("wt go feat-c: exit=%d stderr=%q", code, stderr)
+	}
+	aheadSlotPath := assertSingleLinePath(t, stdout)
+	aheadSlot := filepath.Base(aheadSlotPath)
+	if err := os.WriteFile(filepath.Join(aheadSlotPath, "local-commit.txt"), []byte("local\n"), 0o644); err != nil {
+		t.Fatalf("writing local-commit file: %v", err)
+	}
+	runGit(t, aheadSlotPath, "add", "local-commit.txt")
+	runGit(t, aheadSlotPath, "commit", "-m", "local only commit")
+
+	listOut, listStderr, listCode := runWT(t, dir, "list")
+	if listCode != 0 {
+		t.Fatalf("wt list: exit=%d stderr=%q", listCode, listStderr)
+	}
+
+	cases := []stateColumnCase{
+		{Name: "clean slot on an in-sync remote-tracked branch", Slot: cleanSlot, Want: "clean"},
+		{Name: "dirty slot on an in-sync remote-tracked branch", Slot: dirtySlot, Want: "dirty*"},
+		{Name: "slot on a local-only branch", Slot: localOnlySlot, Want: "unpushed*"},
+		{Name: "slot ahead of its remote-tracked upstream", Slot: aheadSlot, Want: "unpushed*"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.Name, func(t *testing.T) {
+			got := stateColumn(t, listOut, tc.Slot)
+			if got != tc.Want {
+				t.Fatalf("STATE column for %s = %q, want %q\nfull output:\n%s", tc.Slot, got, tc.Want, listOut)
+			}
+		})
 	}
 }
 
