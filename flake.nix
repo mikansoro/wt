@@ -20,6 +20,13 @@
       version = self.shortRev or self.dirtyShortRev or "dev";
     in
     {
+      # Install into a NixOS system via the overlay:
+      #   nixpkgs.overlays = [ wt.overlays.default ];
+      #   environment.systemPackages = [ pkgs.wt ];
+      overlays.default = final: _prev: {
+        wt = self.packages.${final.stdenv.hostPlatform.system}.wt;
+      };
+
       packages = forAllSystems (
         system:
         let
