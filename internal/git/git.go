@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -89,7 +90,7 @@ func GetWorktrees(root string) ([]Worktree, error) {
 			if current != nil {
 				worktrees = append(worktrees, *current)
 			}
-			current = &Worktree{Path: strings.TrimPrefix(line, "worktree ")}
+			current = &Worktree{Path: CanonicalPath(strings.TrimPrefix(line, "worktree "))}
 		case strings.HasPrefix(line, "HEAD "):
 			if current != nil {
 				current.Head = strings.TrimPrefix(line, "HEAD ")
@@ -116,4 +117,17 @@ func GetWorktrees(root string) ([]Worktree, error) {
 	}
 
 	return worktrees, nil
+}
+
+// CanonicalPath returns p with every symlink component resolved, or p unchanged when
+// resolution fails (for example when the path does not exist). Shells leave $PWD — and
+// therefore os.Getwd — pointing at the symlinked spelling of a directory, while git
+// reports worktree paths canonically, so any path that will be compared against another
+// must pass through here first.
+func CanonicalPath(p string) string {
+	resolved, err := filepath.EvalSymlinks(p)
+	if err != nil {
+		return p
+	}
+	return resolved
 }

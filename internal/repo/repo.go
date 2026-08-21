@@ -30,7 +30,13 @@ func FindRepoRoot() (string, error) {
 // out by `wt clone` (see agent-plan.md §5). FindRepoRoot is the common case, starting from
 // the current working directory; `wt adopt` uses this directly to detect whether a target
 // path or one of its ancestors is already fingerprinted.
+//
+// dir is canonicalized first: os.Getwd returns the shell's symlinked $PWD spelling, while
+// `git worktree list` reports canonical paths, and every "is this worktree a child of
+// root?" comparison downstream assumes the two agree.
 func FindRepoRootFrom(dir string) (string, error) {
+	dir = git.CanonicalPath(dir)
+
 	for {
 		bareInfo, bareErr := os.Stat(filepath.Join(dir, ".bare"))
 		gitInfo, gitErr := os.Stat(filepath.Join(dir, ".git"))
