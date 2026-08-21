@@ -8,11 +8,29 @@ assigns a branch to the least-recently-used slot, reusing slots after a safety c
 
 ## Install
 
+Build from source:
+
 ```bash
 make build        # builds ./wt with the version stamped from `git describe`
 # or, without make:
 go build -o wt ./cmd/wt
 ```
+
+Or install straight from the flake, no clone needed — it exposes the package as both
+`packages.default` and `packages.wt` for x86_64/aarch64 Linux and macOS:
+
+```bash
+# flox (https://flox.dev): add wt to the current flox environment
+flox install github:mikansoro/wt
+
+# nix with flakes enabled
+nix profile install github:mikansoro/wt
+```
+
+Flake installs pin the revision they were installed from; `flox upgrade wt` (or
+`nix profile upgrade wt`) rebuilds from the latest commit. Either way, finish with the
+[shell integration](#shell-integration) below — with flox, put the `eval` line after
+`flox activate` in your shell rc so `wt` is on `PATH` when it runs.
 
 ## Commands
 
