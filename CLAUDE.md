@@ -35,7 +35,7 @@ Cross-compiled release binaries are built with `CGO_ENABLED=0` and `-ldflags "-s
 
 ## Invariants to preserve (see §7)
 
-- Never mutate a slot without a clean safety report or an explicit `y`; every destructive prompt defaults to **No**.
+- Never mutate a slot without a clean safety report or an explicit confirmation — an interactive `y`, or the `--yes`/`-y` flag on `go`/`release` for non-interactive use; every destructive prompt defaults to **No**.
 - Never bypass git's single-checkout rule (no `--force`/`--ignore-other-worktrees`). If a branch is already checked out somewhere, route to that worktree instead of erroring.
 - LRU selection never touches `main` or any non-`slot-*` worktree.
 - Exit codes: `0` success, `1` user error (bad args, not a wt repo, git failure), `2` aborted at a safety prompt.

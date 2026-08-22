@@ -15,20 +15,30 @@ import (
 	"wt/internal/repo"
 )
 
+type goOptions struct {
+	assumeYes bool
+}
+
 // NewGoCommand builds `wt go <branch>`.
 func NewGoCommand() *cobra.Command {
-	return &cobra.Command{
+	opts := &goOptions{}
+
+	cmd := &cobra.Command{
 		Use:     "go <branch>",
 		Aliases: []string{"g"},
 		Short:   "Assign a branch to a slot and print its path",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runGo(cmd, args[0])
+			return opts.run(cmd, args[0])
 		},
 	}
+
+	cmd.Flags().BoolVarP(&opts.assumeYes, "yes", "y", false, `assume "yes" at safety prompts, for non-interactive use`)
+
+	return cmd
 }
 
-func runGo(cmd *cobra.Command, branch string) error {
+func (o *goOptions) run(cmd *cobra.Command, branch string) error {
 	root, err := repo.FindRepoRoot()
 	if err != nil {
 		return err
@@ -68,9 +78,12 @@ func runGo(cmd *cobra.Command, branch string) error {
 	}
 
 	if !report.Clean(detached) {
-		proceed, err := prompt.Confirm(repo.OverwritePrompt(slotName, currentBranch, detached, report))
-		if err != nil {
-			return err
+		proceed := o.assumeYes
+		if !proceed {
+			proceed, err = prompt.Confirm(repo.OverwritePrompt(slotName, currentBranch, detached, report))
+			if err != nil {
+				return err
+			}
 		}
 		if !proceed {
 			return prompt.ErrAborted
