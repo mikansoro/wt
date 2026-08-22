@@ -22,7 +22,7 @@ func Confirm(text string) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("no controlling terminal available to confirm: %w", ErrAborted)
 	}
-	defer tty.Close()
+	defer func() { _ = tty.Close() }()
 
 	if _, err := fmt.Fprint(tty, text); err != nil {
 		return false, fmt.Errorf("writing prompt: %w", err)

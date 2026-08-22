@@ -15,35 +15,30 @@ func NewShellInitCommand() *cobra.Command {
 		Short: "Print shell integration (wrapper function and tab completion)",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			runShellInit(cmd)
-			return nil
+			return runShellInit(cmd)
 		},
 	}
 }
 
-func runShellInit(cmd *cobra.Command) {
+func runShellInit(cmd *cobra.Command) error {
 	shellName := filepath.Base(os.Getenv("SHELL"))
 
 	switch shellName {
 	case "zsh":
-		printShellInit(cmd, "~/.zshrc", zshCompletion)
+		return printShellInit(cmd, "~/.zshrc", zshCompletion)
 	case "bash":
-		printShellInit(cmd, "~/.bashrc", bashCompletion)
+		return printShellInit(cmd, "~/.bashrc", bashCompletion)
 	default:
-		fmt.Fprintf(cmd.ErrOrStderr(), "wt: unrecognized shell %q, emitting bash integration\n", shellName)
-		printShellInit(cmd, "your shell rc file", bashCompletion)
+		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "wt: unrecognized shell %q, emitting bash integration\n", shellName)
+		return printShellInit(cmd, "your shell rc file", bashCompletion)
 	}
 }
 
 // printShellInit writes the wrapper function and completion script to stdout, preceded by
 // install instructions as "#" comment lines so `eval "$(wt shell-init)"` remains valid shell.
-func printShellInit(cmd *cobra.Command, rcFile, completion string) {
-	out := cmd.OutOrStdout()
-
-	fmt.Fprintf(out, "# add the following to %s:\n", rcFile)
-	fmt.Fprintln(out, "#   eval \"$(wt shell-init)\"")
-	fmt.Fprintln(out)
-	fmt.Fprint(out, wrapperFunction)
-	fmt.Fprintln(out)
-	fmt.Fprint(out, completion)
+func printShellInit(cmd *cobra.Command, rcFile, completion string) error {
+	_, err := fmt.Fprintf(cmd.OutOrStdout(),
+		"# add the following to %s:\n#   eval \"$(wt shell-init)\"\n\n%s\n%s",
+		rcFile, wrapperFunction, completion)
+	return err
 }

@@ -122,7 +122,7 @@ func (o *cloneOptions) run(cmd *cobra.Command) error {
 		return fmt.Errorf("saving slot state: %w", err)
 	}
 
-	fmt.Fprintf(cmd.ErrOrStderr(), "cloned %s into %s\n", o.url, root)
+	_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "cloned %s into %s\n", o.url, root)
 
 	return nil
 }

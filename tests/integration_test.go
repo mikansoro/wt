@@ -44,14 +44,14 @@ func runTestSuite(m *testing.M) int {
 		fmt.Fprintf(os.Stderr, "wt test harness: creating build temp dir: %v\n", err)
 		return 1
 	}
-	defer os.RemoveAll(buildDir)
+	defer func() { _ = os.RemoveAll(buildDir) }()
 
 	home, err := os.MkdirTemp("", "wt-home-")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "wt test harness: creating home temp dir: %v\n", err)
 		return 1
 	}
-	defer os.RemoveAll(home)
+	defer func() { _ = os.RemoveAll(home) }()
 	sharedHome = home
 
 	cwd, err := os.Getwd()

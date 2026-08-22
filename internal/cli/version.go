@@ -17,8 +17,8 @@ func NewVersionCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Cobra's own Print helpers fall back to stderr; the version string is data and
 			// belongs on stdout.
-			fmt.Fprintln(cmd.OutOrStdout(), version.String())
-			return nil
+			_, err := fmt.Fprintln(cmd.OutOrStdout(), version.String())
+			return err
 		},
 	}
 }
