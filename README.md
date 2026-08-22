@@ -44,6 +44,11 @@ Flake installs pin the revision they were installed from; `flox upgrade wt` (or
 | `wt shell-init` | — | Print shell integration (wrapper function + tab completion) |
 | `wt version` | — | Print build version |
 
+Destructive steps (reusing a slot with uncommitted or unpushed work, deleting an
+unpushed branch) ask for confirmation on the terminal and default to **No**. `wt go`
+and `wt release` accept `-y`/`--yes` to assume "yes" at those prompts, for scripts and
+other non-interactive use where no terminal is available.
+
 ## Repo layout
 
 `wt clone` produces a repo root that is not itself a worktree:

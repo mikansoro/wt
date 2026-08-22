@@ -8,6 +8,8 @@ package integration
 // driving it needs a real pty, and this suite is stdlib-only with no pty support. Running wt
 // with Setsid (no controlling terminal) instead covers the corresponding refusal branch,
 // where /dev/tty can't be opened and wt must abort with exit 2 rather than silently overwrite.
+// The --yes flag takes the same code path as a typed "y", so the proceed branch is covered
+// through it (TestGoYesOverwritesDirtySlot, TestReleaseDirtySlot, and friends).
 
 import (
 	"bytes"
@@ -954,4 +956,132 @@ func TestMiscCommands(t *testing.T) {
 			t.Fatalf("wt go outside a wt repo: stderr = %q, want it to mention \"not a wt-managed repository\"", stderr)
 		}
 	})
+}
+
+// dirtySlotHolding fills every slot, dirties the one holding branch (an untracked file
+// plus a tracked-file edit), makes it the LRU victim, and returns its path.
+func dirtySlotHolding(t *testing.T, dir, branch string) string {
+	t.Helper()
+
+	occupyAllSlots(t, dir, [6]string{"feat-a", "feat-b", "feat-c", "feat-d", "feat-e", branch})
+
+	var dirtySlot string
+	for _, w := range listWorktrees(t, dir) {
+		if w.Branch == branch {
+			dirtySlot = w.Path
+		}
+	}
+	if dirtySlot == "" {
+		t.Fatalf("could not find slot holding %s", branch)
+	}
+
+	if err := os.WriteFile(filepath.Join(dirtySlot, "untracked.txt"), []byte("scratch\n"), 0o644); err != nil {
+		t.Fatalf("writing untracked file: %v", err)
+	}
+	readme := filepath.Join(dirtySlot, "README.md")
+	if err := os.WriteFile(readme, []byte("local edit\n"), 0o644); err != nil {
+		t.Fatalf("modifying README.md: %v", err)
+	}
+
+	makeAllSlotsRecentExcept(t, dir, filepath.Base(dirtySlot))
+
+	return dirtySlot
+}
+
+// TestGoYesOverwritesDirtySlot covers the --yes path of the overwrite prompt: the flag
+// stands in for the interactive "y" that this suite cannot type (no pty), so the overwrite
+// proceeds with no controlling terminal instead of aborting with exit 2.
+func TestGoYesOverwritesDirtySlot(t *testing.T) {
+	dir := cloneRepo(t)
+	dirtySlot := dirtySlotHolding(t, dir, "feat-f")
+
+	stdout, stderr, code := runWT(t, dir, "go", "--yes", "brand-new-1")
+	if code != 0 {
+		t.Fatalf("wt go --yes brand-new-1 against a dirty slot: exit=%d stderr=%q", code, stderr)
+	}
+	slotPath := assertSingleLinePath(t, stdout)
+	if resolvePath(t, slotPath) != resolvePath(t, dirtySlot) {
+		t.Fatalf("wt go --yes used %q, want the dirty LRU slot %q", slotPath, dirtySlot)
+	}
+
+	if branch := runGit(t, dirtySlot, "rev-parse", "--abbrev-ref", "HEAD"); branch != "brand-new-1" {
+		t.Fatalf("slot branch after wt go --yes = %q, want brand-new-1", branch)
+	}
+	if _, err := os.Stat(filepath.Join(dirtySlot, "untracked.txt")); !os.IsNotExist(err) {
+		t.Fatalf("untracked file should have been cleaned by wt go --yes, stat err = %v", err)
+	}
+}
+
+// TestReleaseDirtySlot covers both sides of the release safety prompt on a dirty slot:
+// without a controlling terminal it must abort with exit 2 and leave the slot untouched;
+// with --yes it must proceed, discard the dirty state, and return the slot to idle.
+func TestReleaseDirtySlot(t *testing.T) {
+	t.Run("refuses without a tty", func(t *testing.T) {
+		dir := cloneRepo(t)
+		dirtySlot := dirtySlotHolding(t, dir, "feat-f")
+
+		_, stderr, code := runWT(t, dir, "release", "feat-f")
+		if code != 2 {
+			t.Fatalf("wt release feat-f against a dirty slot: exit=%d, want 2; stderr=%q", code, stderr)
+		}
+		if branch := runGit(t, dirtySlot, "rev-parse", "--abbrev-ref", "HEAD"); branch != "feat-f" {
+			t.Fatalf("slot branch changed after an aborted wt release: got %q, want feat-f", branch)
+		}
+		if _, err := os.Stat(filepath.Join(dirtySlot, "untracked.txt")); err != nil {
+			t.Fatalf("untracked file was removed by an aborted wt release: %v", err)
+		}
+	})
+
+	t.Run("--yes releases without a tty", func(t *testing.T) {
+		dir := cloneRepo(t)
+		dirtySlot := dirtySlotHolding(t, dir, "feat-f")
+
+		_, stderr, code := runWT(t, dir, "release", "--yes", "feat-f")
+		if code != 0 {
+			t.Fatalf("wt release --yes feat-f: exit=%d stderr=%q", code, stderr)
+		}
+		if head := runGit(t, dirtySlot, "rev-parse", "--abbrev-ref", "HEAD"); head != "HEAD" {
+			t.Fatalf("slot after wt release --yes = %q, want detached HEAD", head)
+		}
+		if _, err := os.Stat(filepath.Join(dirtySlot, "untracked.txt")); !os.IsNotExist(err) {
+			t.Fatalf("untracked file should have been cleaned by wt release --yes, stat err = %v", err)
+		}
+	})
+}
+
+// TestReleaseYesDeleteBranchUnpushed covers the second confirm site in release: deleting a
+// branch with unpushed commits. --yes must stand in for the prompt there too.
+func TestReleaseYesDeleteBranchUnpushed(t *testing.T) {
+	dir := cloneRepo(t)
+
+	stdout, stderr, code := runWT(t, dir, "go", "feat-a")
+	if code != 0 {
+		t.Fatalf("wt go feat-a: exit=%d stderr=%q", code, stderr)
+	}
+	slotPath := assertSingleLinePath(t, stdout)
+
+	if err := os.WriteFile(filepath.Join(slotPath, "new.txt"), []byte("unpushed\n"), 0o644); err != nil {
+		t.Fatalf("writing new file: %v", err)
+	}
+	runGit(t, slotPath, "add", "new.txt")
+	runGit(t, slotPath, "commit", "-m", "unpushed work")
+
+	_, stderr, code = runWT(t, dir, "release", "--delete-branch", "feat-a")
+	if code != 2 {
+		t.Fatalf("wt release --delete-branch with unpushed commits and no tty: exit=%d, want 2; stderr=%q", code, stderr)
+	}
+	if out := runGit(t, dir, "branch", "--list", "feat-a"); out == "" {
+		t.Fatalf("branch feat-a was deleted by an aborted wt release")
+	}
+
+	_, stderr, code = runWT(t, dir, "release", "--yes", "--delete-branch", "feat-a")
+	if code != 0 {
+		t.Fatalf("wt release --yes --delete-branch feat-a: exit=%d stderr=%q", code, stderr)
+	}
+	if out := runGit(t, dir, "branch", "--list", "feat-a"); out != "" {
+		t.Fatalf("branch feat-a should have been deleted, found: %q", out)
+	}
+	if head := runGit(t, slotPath, "rev-parse", "--abbrev-ref", "HEAD"); head != "HEAD" {
+		t.Fatalf("slot after release = %q, want detached HEAD", head)
+	}
 }

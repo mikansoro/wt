@@ -16,6 +16,7 @@ import (
 
 type releaseOptions struct {
 	deleteBranch bool
+	assumeYes    bool
 }
 
 // NewReleaseCommand builds `wt release [slot|branch]`.
@@ -37,6 +38,7 @@ func NewReleaseCommand() *cobra.Command {
 	}
 
 	cmd.Flags().BoolVar(&opts.deleteBranch, "delete-branch", false, "delete the branch after releasing the slot")
+	cmd.Flags().BoolVarP(&opts.assumeYes, "yes", "y", false, `assume "yes" at safety prompts, for non-interactive use`)
 
 	return cmd
 }
@@ -78,9 +80,12 @@ func (o *releaseOptions) run(cmd *cobra.Command, arg string) error {
 	branch := target.Branch
 
 	if !report.Clean(target.Detached) {
-		proceed, err := prompt.Confirm(repo.OverwritePrompt(name, branch, target.Detached, report))
-		if err != nil {
-			return err
+		proceed := o.assumeYes
+		if !proceed {
+			proceed, err = prompt.Confirm(repo.OverwritePrompt(name, branch, target.Detached, report))
+			if err != nil {
+				return err
+			}
 		}
 		if !proceed {
 			return prompt.ErrAborted
@@ -109,9 +114,12 @@ func (o *releaseOptions) run(cmd *cobra.Command, arg string) error {
 		}
 
 		if !report.HasUpstream || len(report.UnpushedCommits) > 0 {
-			proceed, err := prompt.Confirm(repo.DeleteBranchPrompt(branch, report))
-			if err != nil {
-				return err
+			proceed := o.assumeYes
+			if !proceed {
+				proceed, err = prompt.Confirm(repo.DeleteBranchPrompt(branch, report))
+				if err != nil {
+					return err
+				}
 			}
 			if !proceed {
 				return prompt.ErrAborted
