@@ -123,7 +123,6 @@ func (o *cloneOptions) run(cmd *cobra.Command) error {
 	}
 
 	fmt.Fprintf(cmd.ErrOrStderr(), "cloned %s into %s\n", o.url, root)
-	fmt.Fprintf(cmd.ErrOrStderr(), "cd %s\n", filepath.Join(dir, "main"))
 
 	return nil
 }
