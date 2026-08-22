@@ -1085,3 +1085,83 @@ func TestReleaseYesDeleteBranchUnpushed(t *testing.T) {
 		t.Fatalf("slot after release = %q, want detached HEAD", head)
 	}
 }
+
+// runWrapperScript sources the emitted shell integration in a real bash, cd's into the
+// repo's main worktree, runs wrapperCmd through the sourced `wt` function, and finishes
+// with `pwd -P` so callers can assert where the wrapper left the shell.
+func runWrapperScript(t *testing.T, dir, wrapperCmd string) (stdout, stderr string) {
+	t.Helper()
+
+	bash, err := exec.LookPath("bash")
+	if err != nil {
+		t.Skip("bash not available")
+	}
+
+	script := `eval "$(command wt shell-init 2>/dev/null)" && cd "$1" && ` + wrapperCmd + ` && pwd -P`
+	cmd := exec.Command(bash, "-c", script, "bash", filepath.Join(dir, "main"))
+	cmd.Env = append(testEnv(), "PATH="+filepath.Dir(wtBinary)+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	var outBuf, errBuf bytes.Buffer
+	cmd.Stdout = &outBuf
+	cmd.Stderr = &errBuf
+
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("wrapper %s: %v\nstdout: %s\nstderr: %s", wrapperCmd, err, outBuf.String(), errBuf.String())
+	}
+
+	return outBuf.String(), errBuf.String()
+}
+
+// lastLine returns the final line of the script's stdout — the `pwd -P` that
+// runWrapperScript appends.
+func lastLine(s string) string {
+	lines := strings.Split(strings.TrimRight(s, "\n"), "\n")
+	return lines[len(lines)-1]
+}
+
+// TestShellWrapperGoHelp sources the emitted shell integration in a real bash and runs
+// `wt go --help` (and its `g` alias) through the wrapper. Cobra prints usage on stdout
+// with exit 0, so a wrapper that blindly cd's into captured stdout fails here: the fixed
+// wrapper must pass the help text through, exit 0, and leave the working directory
+// unchanged.
+func TestShellWrapperGoHelp(t *testing.T) {
+	for _, sub := range []string{"go", "g"} {
+		t.Run(sub, func(t *testing.T) {
+			dir := cloneRepo(t)
+
+			stdout, _ := runWrapperScript(t, dir, "wt "+sub+" --help")
+
+			if !strings.Contains(stdout, "Usage:") {
+				t.Fatalf("wrapper swallowed the help text, stdout:\n%s", stdout)
+			}
+			if pwd := lastLine(stdout); resolvePath(t, pwd) != resolvePath(t, filepath.Join(dir, "main")) {
+				t.Fatalf("wrapper changed the working directory to %q after wt %s --help", pwd, sub)
+			}
+		})
+	}
+}
+
+// TestShellWrapperGoChangesDirectory covers the wrapper's whole point: `wt go <branch>`
+// (and `wt g <branch>`) through the sourced wrapper must actually change the shell's
+// working directory to the assigned slot, with the slot path consumed by cd rather than
+// leaking to stdout.
+func TestShellWrapperGoChangesDirectory(t *testing.T) {
+	for _, sub := range []string{"go", "g"} {
+		t.Run(sub, func(t *testing.T) {
+			dir := cloneRepo(t)
+
+			stdout, _ := runWrapperScript(t, dir, "wt "+sub+" feat-a")
+
+			pwd := lastLine(stdout)
+			if resolvePath(t, filepath.Dir(pwd)) != resolvePath(t, dir) || !strings.HasPrefix(filepath.Base(pwd), "slot-") {
+				t.Fatalf("wrapper left the shell in %q, want a slot under %q", pwd, dir)
+			}
+			if branch := runGit(t, pwd, "rev-parse", "--abbrev-ref", "HEAD"); branch != "feat-a" {
+				t.Fatalf("slot the wrapper cd'd into has branch %q, want feat-a", branch)
+			}
+			if trimmed := strings.TrimRight(stdout, "\n"); trimmed != pwd {
+				t.Fatalf("wrapper leaked the slot path to stdout instead of consuming it:\n%s", stdout)
+			}
+		})
+	}
+}

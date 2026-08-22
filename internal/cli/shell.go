@@ -1,13 +1,20 @@
 package cli
 
-// wrapperFunction is the §8 shell function, verbatim. A subprocess can't change its
-// parent shell's working directory, so `wt go` only prints the target path; this function
-// captures it and does the actual `cd`. It works identically in bash and zsh.
+// wrapperFunction is the §8 shell function. A subprocess can't change its parent shell's
+// working directory, so `wt go` only prints the target path; this function captures it
+// and does the actual `cd`. Captured output that isn't a directory (cobra intercepts
+// --help/-h before RunE and prints usage on stdout, exit 0) is echoed instead of handed
+// to cd. It works identically in bash and zsh, and also matches the `g` alias that the
+// completion scripts advertise.
 const wrapperFunction = `wt() {
-  if [[ "$1" == "go" ]]; then
+  if [[ "$1" == "go" || "$1" == "g" ]]; then
     local target
-    target="$(command wt go "${@:2}")" || return $?  # stderr (chatter) passes through
-    cd "$target"
+    target="$(command wt "$@")" || return $?  # stderr (chatter) passes through
+    if [[ -d "$target" ]]; then
+      cd "$target"
+    elif [[ -n "$target" ]]; then
+      printf '%s\n' "$target"  # not a path: --help/usage text
+    fi
   else
     command wt "$@"
   fi
