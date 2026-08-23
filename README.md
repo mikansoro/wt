@@ -32,6 +32,11 @@ Flake installs pin the revision they were installed from; `flox upgrade wt` (or
 [shell integration](#shell-integration) below — with flox, put the `eval` line after
 `flox activate` in your shell rc so `wt` is on `PATH` when it runs.
 
+For declarative NixOS or home-manager setups, the flake exports `overlays.default` which
+adds `pkgs.wt` to your nixpkgs set. Add `wt` to your flake inputs, apply the overlay
+with `nixpkgs.overlays = [ wt.overlays.default ];`, then use `pkgs.wt` in
+`environment.systemPackages` or `home.packages`.
+
 ## Commands
 
 | Command | Aliases | Purpose |
