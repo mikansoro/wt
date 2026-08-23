@@ -82,7 +82,9 @@ func runList(cmd *cobra.Command) error {
 	}
 
 	w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 4, 2, ' ', 0)
-	fmt.Fprintln(w, "WORKTREE\tBRANCH\tSTATE\tLAST USED")
+	if _, err := fmt.Fprintln(w, "WORKTREE\tBRANCH\tSTATE\tLAST USED"); err != nil {
+		return err
+	}
 
 	now := time.Now()
 
@@ -101,7 +103,9 @@ func runList(cmd *cobra.Command) error {
 			}
 		}
 
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", name, branchDisplay, stateLabel(statuses[i], wt.Detached), lastUsed)
+		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", name, branchDisplay, stateLabel(statuses[i], wt.Detached), lastUsed); err != nil {
+			return err
+		}
 	}
 
 	return w.Flush()

@@ -53,9 +53,9 @@ func (o *goOptions) run(cmd *cobra.Command, branch string) error {
 	// matches the user's actual intent and avoids ever needing --force/--ignore-other-worktrees.
 	for _, wt := range wts {
 		if !wt.Detached && wt.Branch == branch {
-			fmt.Fprintf(cmd.ErrOrStderr(), "branch '%s' is already checked out at %s\n", branch, wt.Path)
-			fmt.Fprintln(cmd.OutOrStdout(), wt.Path)
-			return nil
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "branch '%s' is already checked out at %s\n", branch, wt.Path)
+			_, err := fmt.Fprintln(cmd.OutOrStdout(), wt.Path)
+			return err
 		}
 	}
 
@@ -108,10 +108,9 @@ func (o *goOptions) run(cmd *cobra.Command, branch string) error {
 
 	runPostActivateHook(cmd, root, slotPath)
 
-	fmt.Fprintf(cmd.ErrOrStderr(), "checked out '%s' in %s\n", branch, slotName)
-	fmt.Fprintln(cmd.OutOrStdout(), slotPath)
-
-	return nil
+	_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "checked out '%s' in %s\n", branch, slotName)
+	_, err = fmt.Fprintln(cmd.OutOrStdout(), slotPath)
+	return err
 }
 
 // slotOccupant reports whether the slot at slotPath is currently detached, and the branch

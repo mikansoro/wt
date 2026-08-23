@@ -140,7 +140,7 @@ func (o *releaseOptions) run(cmd *cobra.Command, arg string) error {
 		return err
 	}
 
-	fmt.Fprintf(cmd.ErrOrStderr(), "released %s\n", name)
+	_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "released %s\n", name)
 
 	return nil
 }

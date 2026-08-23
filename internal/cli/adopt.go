@@ -98,7 +98,7 @@ func adoptInPlace(cmd *cobra.Command, root, remoteName string, dryRun bool) erro
 	}
 
 	if actions == 0 {
-		fmt.Fprintln(cmd.ErrOrStderr(), "nothing to do")
+		_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "nothing to do")
 	}
 
 	return nil
@@ -132,29 +132,29 @@ func convertShapeB(cmd *cobra.Command, target, bareDir, remoteName string, dryRu
 	gitDir := bareDir
 
 	if dryRun {
-		fmt.Fprintf(stderr, "would: rename %s to .bare\n", bareName)
-		fmt.Fprintln(stderr, "would: write .git pointer file")
+		_, _ = fmt.Fprintf(stderr, "would: rename %s to .bare\n", bareName)
+		_, _ = fmt.Fprintln(stderr, "would: write .git pointer file")
 		if len(existingPaths) > 0 {
-			fmt.Fprintf(stderr, "would: repair %d existing worktree link(s)\n", len(existingPaths))
+			_, _ = fmt.Fprintf(stderr, "would: repair %d existing worktree link(s)\n", len(existingPaths))
 		}
 	} else {
 		if err := os.Rename(bareDir, newBareDir); err != nil {
 			return fmt.Errorf("renaming %s to .bare: %w", bareName, err)
 		}
-		fmt.Fprintf(stderr, "renamed %s to .bare\n", bareName)
+		_, _ = fmt.Fprintf(stderr, "renamed %s to .bare\n", bareName)
 
 		gitPointer := filepath.Join(target, ".git")
 		if err := os.WriteFile(gitPointer, []byte("gitdir: ./.bare\n"), 0o644); err != nil {
 			return fmt.Errorf("writing %s: %w", gitPointer, err)
 		}
-		fmt.Fprintln(stderr, "wrote .git pointer file")
+		_, _ = fmt.Fprintln(stderr, "wrote .git pointer file")
 
 		if len(existingPaths) > 0 {
 			args := append([]string{"worktree", "repair"}, existingPaths...)
 			if _, _, err := git.Run(newBareDir, args...); err != nil {
 				return err
 			}
-			fmt.Fprintf(stderr, "repaired %d existing worktree link(s)\n", len(existingPaths))
+			_, _ = fmt.Fprintf(stderr, "repaired %d existing worktree link(s)\n", len(existingPaths))
 		}
 
 		gitDir = target
@@ -186,13 +186,13 @@ func fillIn(cmd *cobra.Command, root, gitDir, remoteName string, dryRun bool, re
 
 		if current != wantFetch {
 			if dryRun {
-				fmt.Fprintf(stderr, "would: fix %s fetch refspec\n", remoteName)
+				_, _ = fmt.Fprintf(stderr, "would: fix %s fetch refspec\n", remoteName)
 			} else {
 				fetchKey := fmt.Sprintf("remote.%s.fetch", remoteName)
 				if _, _, err := git.Run(root, "config", fetchKey, wantFetch); err != nil {
 					return actionsTaken, err
 				}
-				fmt.Fprintf(stderr, "fixed %s fetch refspec\n", remoteName)
+				_, _ = fmt.Fprintf(stderr, "fixed %s fetch refspec\n", remoteName)
 			}
 			actionsTaken++
 		}
@@ -228,12 +228,12 @@ func fillIn(cmd *cobra.Command, root, gitDir, remoteName string, dryRun bool, re
 	}
 	if needsHeadAlign {
 		if dryRun {
-			fmt.Fprintf(stderr, "would: align repository HEAD to %s\n", branch)
+			_, _ = fmt.Fprintf(stderr, "would: align repository HEAD to %s\n", branch)
 		} else {
 			if _, _, err := git.Run(root, "symbolic-ref", "HEAD", "refs/heads/"+branch); err != nil {
 				return actionsTaken, err
 			}
-			fmt.Fprintf(stderr, "aligned repository HEAD to %s\n", branch)
+			_, _ = fmt.Fprintf(stderr, "aligned repository HEAD to %s\n", branch)
 		}
 		actionsTaken++
 	}
@@ -246,11 +246,11 @@ func fillIn(cmd *cobra.Command, root, gitDir, remoteName string, dryRun bool, re
 
 	if !hasMain {
 		if elsewhere, ok := branchCheckedOutElsewhere(all, branch); ok {
-			fmt.Fprintf(stderr,
+			_, _ = fmt.Fprintf(stderr,
 				"warning: default branch '%s' is already checked out at %s; not creating main/\n",
 				branch, elsewhere)
 		} else if dryRun {
-			fmt.Fprintf(stderr, "would: create main worktree on %s\n", branch)
+			_, _ = fmt.Fprintf(stderr, "would: create main worktree on %s\n", branch)
 			actionsTaken++
 		} else {
 			if _, _, err := git.Run(root, "worktree", "add", "main", branch); err != nil {
@@ -270,7 +270,7 @@ func fillIn(cmd *cobra.Command, root, gitDir, remoteName string, dryRun bool, re
 				}
 			}
 
-			fmt.Fprintf(stderr, "created main worktree on %s\n", branch)
+			_, _ = fmt.Fprintf(stderr, "created main worktree on %s\n", branch)
 			actionsTaken++
 		}
 	}
@@ -287,7 +287,7 @@ func fillIn(cmd *cobra.Command, root, gitDir, remoteName string, dryRun bool, re
 		slotName := fmt.Sprintf("slot-%d", n)
 
 		if slotNameBranchExists(gitDir, slotName) {
-			fmt.Fprintf(stderr,
+			_, _ = fmt.Fprintf(stderr,
 				"warning: branch '%s' exists; slot names must never be used as branch names\n",
 				slotName)
 		}
@@ -298,25 +298,25 @@ func fillIn(cmd *cobra.Command, root, gitDir, remoteName string, dryRun bool, re
 			}
 
 			if dryRun {
-				fmt.Fprintf(stderr, "would: record LRU entry for %s\n", slotName)
+				_, _ = fmt.Fprintf(stderr, "would: record LRU entry for %s\n", slotName)
 			} else {
 				st.Slots[slotName] = repo.SlotEntry{LastUsed: now}
 				stateChanged = true
-				fmt.Fprintf(stderr, "recorded LRU entry for %s\n", slotName)
+				_, _ = fmt.Fprintf(stderr, "recorded LRU entry for %s\n", slotName)
 			}
 			actionsTaken++
 			continue
 		}
 
 		if dryRun {
-			fmt.Fprintf(stderr, "would: create %s\n", slotName)
+			_, _ = fmt.Fprintf(stderr, "would: create %s\n", slotName)
 		} else {
 			if _, _, err := git.Run(root, "worktree", "add", "--detach", slotName, branch); err != nil {
 				return actionsTaken, err
 			}
 			st.Slots[slotName] = repo.SlotEntry{LastUsed: now}
 			stateChanged = true
-			fmt.Fprintf(stderr, "created %s\n", slotName)
+			_, _ = fmt.Fprintf(stderr, "created %s\n", slotName)
 		}
 		actionsTaken++
 	}
