@@ -17,7 +17,7 @@ go test -count=1 -run TestName ./tests   # single test
 
 Always pass `-count=1` when running tests directly: the integration tests exec a binary they build at run time, so Go's test cache cannot see that they depend on the source packages and will happily report a stale `(cached)` pass.
 
-Cross-compiled release binaries are built with `CGO_ENABLED=0` and `-ldflags "-s -w -X wt/internal/version.Version=$(git describe --tags --always)"` for `linux/amd64`, `linux/arm64`, `darwin/amd64`, `darwin/arm64`. `wt version` prints the stamped value, falling back to `debug.ReadBuildInfo` for `go install` builds.
+Cross-compiled release binaries are built with `CGO_ENABLED=0` and `-ldflags "-s -w -X wt/internal/version.Version=$(git describe --tags --always)"` for `linux/amd64`, `linux/arm64`, `darwin/arm64`. `wt version` prints the stamped value, falling back to `debug.ReadBuildInfo` for `go install` builds.
 
 ## Architecture
 
