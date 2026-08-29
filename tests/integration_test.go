@@ -1131,6 +1131,11 @@ func TestSymlinkedCWD(t *testing.T) {
 		t.Fatalf("wt go feat-a from symlinked cwd: exit=%d stderr=%q", code, stderr)
 	}
 	slotPath := assertSingleLinePath(t, stdout)
+	// The printed path must be the canonical spelling — the one git reports — not the
+	// symlinked spelling of the cwd, so the shell wrapper cds to the resolved location.
+	if resolved := resolvePath(t, slotPath); slotPath != resolved {
+		t.Fatalf("wt go from symlinked cwd printed %q, want the canonical path %q", slotPath, resolved)
+	}
 	slotName := filepath.Base(slotPath)
 
 	listOut, listStderr, listCode := runWTPwd(t, link, "list")
@@ -1138,7 +1143,10 @@ func TestSymlinkedCWD(t *testing.T) {
 		t.Fatalf("wt list from symlinked cwd: exit=%d stderr=%q", listCode, listStderr)
 	}
 	if !strings.Contains(listOut, "feat-a") {
-		t.Fatalf("wt list from symlinked cwd is missing the occupied slot:\n%s", listOut)
+		t.Fatalf("wt list from symlinked cwd is missing the occupied branch:\n%s", listOut)
+	}
+	if !strings.Contains(listOut, slotName) {
+		t.Fatalf("wt list from symlinked cwd is missing the %s row:\n%s", slotName, listOut)
 	}
 
 	_, relStderr, relCode := runWTPwd(t, link, "release", slotName)
