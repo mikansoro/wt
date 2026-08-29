@@ -85,10 +85,11 @@ function plus a matching completion script to stdout; everything else (install n
 unrecognized-shell warnings) goes to stderr, so it stays visible even though `eval`
 captures stdout.
 
-The wrapper function only special-cases `go`: it runs `command wt go "$@"`, captures its
-stdout (the slot path), and `cd`s to it, while letting stderr chatter pass straight
-through to the terminal. Every other subcommand is passed through to the real `wt`
-binary unchanged.
+The wrapper function only special-cases `go` (and its `g` alias): it runs the real
+binary, captures its stdout, and — when that output is an existing directory — `cd`s to
+it, while letting stderr chatter pass straight through to the terminal. Output that
+isn't a path (such as `wt go --help` usage text) is printed instead. Every other
+subcommand is passed through to the real `wt` binary unchanged.
 
 Once loaded, tab completion covers subcommand names, branch names (for `go`/`g` and
 `release`/`free`), and slot names (`main`, `slot-1`…`slot-6`, for `release`/`free`), for
