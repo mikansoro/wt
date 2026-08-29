@@ -1165,3 +1165,33 @@ func TestShellWrapperGoChangesDirectory(t *testing.T) {
 		})
 	}
 }
+
+// TestShellInitEvalsWithoutCompletionBuiltin evals the shell integration in a bash whose
+// `complete` builtin is disabled, matching bash builds without programmable completion
+// (nixpkgs' non-interactive bash, which is what CI's nix sandbox puts on PATH).
+// Registration must degrade to a no-op: the eval exits 0 and the wt() wrapper still works.
+func TestShellInitEvalsWithoutCompletionBuiltin(t *testing.T) {
+	dir := cloneRepo(t)
+
+	bash, err := exec.LookPath("bash")
+	if err != nil {
+		t.Skip("bash not available")
+	}
+
+	script := `enable -n complete 2>/dev/null
+eval "$(command wt shell-init 2>/dev/null)" && cd "$1" && wt go feat-a && pwd -P`
+	cmd := exec.Command(bash, "-c", script, "bash", filepath.Join(dir, "main"))
+	cmd.Env = append(testEnv(), "PATH="+filepath.Dir(wtBinary)+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	var outBuf, errBuf bytes.Buffer
+	cmd.Stdout = &outBuf
+	cmd.Stderr = &errBuf
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("shell-init eval without complete builtin: %v\nstdout: %s\nstderr: %s", err, outBuf.String(), errBuf.String())
+	}
+
+	pwd := lastLine(outBuf.String())
+	if resolvePath(t, filepath.Dir(pwd)) != resolvePath(t, dir) || !strings.HasPrefix(filepath.Base(pwd), "slot-") {
+		t.Fatalf("wrapper left the shell in %q, want a slot under %q", pwd, dir)
+	}
+}

@@ -52,7 +52,11 @@ _wt_branches() {
   ` + wtBranchListCmd + `
 }
 
-complete -F _wt wt
+# complete is missing from bash builds without programmable completion (e.g. nixpkgs'
+# non-interactive bash); the wrapper must still be safe to eval there.
+if command -v complete >/dev/null 2>&1; then
+  complete -F _wt wt
+fi
 `
 
 const zshCompletion = `_wt() {
@@ -78,5 +82,9 @@ _wt_branches() {
   ` + wtBranchListCmd + `
 }
 
-compdef _wt wt
+# compdef only exists once compinit has run; if shell-init is eval'd earlier in .zshrc,
+# skip registration rather than erroring.
+if command -v compdef >/dev/null 2>&1; then
+  compdef _wt wt
+fi
 `
