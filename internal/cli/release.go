@@ -170,7 +170,9 @@ func worktreeForCWD(wts []git.Worktree) (*git.Worktree, error) {
 	if err != nil {
 		return nil, fmt.Errorf("getting working directory: %w", err)
 	}
-	cwd = filepath.Clean(cwd)
+	// Getwd follows the shell's $PWD, which may spell the path through a symlink;
+	// worktree paths from git are canonical, so canonicalize before comparing.
+	cwd = git.CanonicalPath(filepath.Clean(cwd))
 
 	for i := range wts {
 		wtPath := filepath.Clean(wts[i].Path)

@@ -1085,3 +1085,88 @@ func TestReleaseYesDeleteBranchUnpushed(t *testing.T) {
 		t.Fatalf("slot after release = %q, want detached HEAD", head)
 	}
 }
+
+// runWTPwd is runWT with the child's $PWD set to dir, reproducing how shells behave in a
+// directory reached through a symlink: os.Getwd honors $PWD when it points at the same
+// inode as ".", so wt sees the symlinked spelling while git reports canonical paths.
+func runWTPwd(t *testing.T, dir string, args ...string) (stdout, stderr string, exitCode int) {
+	t.Helper()
+
+	cmd := exec.Command(wtBinary, args...)
+	cmd.Dir = dir
+	cmd.Env = append(testEnv(), "PWD="+dir)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+
+	var outBuf, errBuf bytes.Buffer
+	cmd.Stdout = &outBuf
+	cmd.Stderr = &errBuf
+
+	err := cmd.Run()
+	if err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			return outBuf.String(), errBuf.String(), exitErr.ExitCode()
+		}
+		t.Fatalf("running wt %v: %v", args, err)
+	}
+
+	return outBuf.String(), errBuf.String(), 0
+}
+
+// TestSymlinkedCWD runs wt from a repo path spelled through a symlink, the way a shell
+// user reaches a repo via a symlinked parent directory (~/code -> /mnt/…). Every "is this
+// worktree a child of root?" comparison must survive $PWD and git disagreeing on spelling:
+// slot selection in wt go, the root filter in wt list, release by slot name, and the
+// current-slot lookup of a bare wt release.
+func TestSymlinkedCWD(t *testing.T) {
+	dir := cloneRepo(t)
+
+	link := filepath.Join(t.TempDir(), "repo-link")
+	if err := os.Symlink(dir, link); err != nil {
+		t.Skipf("cannot create symlink: %v", err)
+	}
+
+	stdout, stderr, code := runWTPwd(t, link, "go", "feat-a")
+	if code != 0 {
+		t.Fatalf("wt go feat-a from symlinked cwd: exit=%d stderr=%q", code, stderr)
+	}
+	slotPath := assertSingleLinePath(t, stdout)
+	// The printed path must be the canonical spelling — the one git reports — not the
+	// symlinked spelling of the cwd, so the shell wrapper cds to the resolved location.
+	if resolved := resolvePath(t, slotPath); slotPath != resolved {
+		t.Fatalf("wt go from symlinked cwd printed %q, want the canonical path %q", slotPath, resolved)
+	}
+	slotName := filepath.Base(slotPath)
+
+	listOut, listStderr, listCode := runWTPwd(t, link, "list")
+	if listCode != 0 {
+		t.Fatalf("wt list from symlinked cwd: exit=%d stderr=%q", listCode, listStderr)
+	}
+	if !strings.Contains(listOut, "feat-a") {
+		t.Fatalf("wt list from symlinked cwd is missing the occupied branch:\n%s", listOut)
+	}
+	if !strings.Contains(listOut, slotName) {
+		t.Fatalf("wt list from symlinked cwd is missing the %s row:\n%s", slotName, listOut)
+	}
+
+	_, relStderr, relCode := runWTPwd(t, link, "release", slotName)
+	if relCode != 0 {
+		t.Fatalf("wt release %s from symlinked cwd: exit=%d stderr=%q", slotName, relCode, relStderr)
+	}
+	if head := runGit(t, slotPath, "rev-parse", "--abbrev-ref", "HEAD"); head != "HEAD" {
+		t.Fatalf("slot after release from symlinked cwd = %q, want detached HEAD", head)
+	}
+
+	stdout, stderr, code = runWTPwd(t, link, "go", "feat-b")
+	if code != 0 {
+		t.Fatalf("wt go feat-b from symlinked cwd: exit=%d stderr=%q", code, stderr)
+	}
+	slotName = filepath.Base(assertSingleLinePath(t, stdout))
+
+	// A bare `wt release` resolves the slot from the cwd — here spelled through the link.
+	linkedSlot := filepath.Join(link, slotName)
+	_, relStderr, relCode = runWTPwd(t, linkedSlot, "release")
+	if relCode != 0 {
+		t.Fatalf("wt release (no arg) from symlinked slot cwd: exit=%d stderr=%q", relCode, relStderr)
+	}
+}
