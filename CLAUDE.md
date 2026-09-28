@@ -27,7 +27,7 @@ Cross-compiled release binaries are built with `CGO_ENABLED=0` and `-ldflags "-s
 
 **Git is the single source of truth.** Live worktree/branch state always comes from `git worktree list --porcelain`. The only metadata `wt` persists is LRU recency in `.bare/wt.json` (`{"slots": {"slot-N": {"last_used": <RFC3339 UTC>}}}`). Treat `wt.json` as hints only: tolerate it missing or naming slots that no longer exist, and never crash if a slot was removed out-of-band. Writes are atomic (`wt.json.tmp` + `os.Rename`). `main` is never in `slots` and never eligible for LRU selection.
 
-**Repo root discovery** (works from root, `main/`, or any slot): walk upward to the first directory containing **both** a `.bare/` directory and a `.git` regular file. Every git invocation then uses `git -C <explicit-path>` so behavior never depends on CWD.
+**Repo root discovery** (works from root, `main/`, or any slot): walk upward to the first directory containing **both** a `.bare/` directory and a `.git` regular file. Every git invocation then uses `git -C <explicit-path>` so behavior never depends on CWD. Paths are compared canonically: the shell's `$PWD` (and therefore `os.Getwd`) can spell a directory through a symlink while git reports worktree paths resolved, so the repo root, the cwd, and paths parsed from porcelain all pass through `git.CanonicalPath` before any comparison.
 
 **Output contract (critical).** A subprocess can't change its parent shell's CWD, so `wt go` prints the target slot's absolute path as the *only* thing on **stdout**; all human chatter goes to **stderr**. `wt shell-init` emits a shell wrapper function that captures stdout and runs `cd`. Prompts must read/write `/dev/tty` directly (never stdin/stdout), so they work while stdout is captured.
 
